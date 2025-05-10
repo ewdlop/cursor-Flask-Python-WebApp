@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>待办事项应用</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .tag-badge {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.75em;
+            font-weight: 700;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 0.25rem;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -12,6 +26,7 @@
             <a class="navbar-brand" href="{{ url_for('home') }}">待办事项</a>
             <div class="navbar-nav ms-auto">
                 <span class="nav-item nav-link text-light">欢迎, {{ current_user.username }}</span>
+                <a class="nav-link" href="{{ url_for('export_todos') }}">导出</a>
                 <a class="nav-link" href="{{ url_for('logout') }}">退出</a>
             </div>
         </div>
@@ -21,6 +36,7 @@
         <div class="row">
             <!-- 左侧边栏 -->
             <div class="col-md-3">
+                <!-- 添加新分类 -->
                 <div class="card mb-4">
                     <div class="card-body">
                         <h5 class="card-title">添加新分类</h5>
@@ -33,7 +49,24 @@
                     </div>
                 </div>
 
-                <div class="card">
+                <!-- 添加新标签 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">添加新标签</h5>
+                        <form action="{{ url_for('add_tag') }}" method="post">
+                            <div class="mb-2">
+                                <input type="text" name="name" class="form-control" placeholder="标签名称" required>
+                            </div>
+                            <div class="mb-2">
+                                <input type="color" name="color" class="form-control form-control-color" value="#6c757d" title="选择标签颜色">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">添加</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 分类列表 -->
+                <div class="card mb-4">
                     <div class="card-body">
                         <h5 class="card-title">分类列表</h5>
                         <div class="list-group">
@@ -44,6 +77,24 @@
                             <a href="{{ url_for('home', category=category.id) }}" 
                                class="list-group-item list-group-item-action {% if selected_category == category.id %}active{% endif %}">
                                 {{ category.name }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 标签列表 -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">标签列表</h5>
+                        <div class="list-group">
+                            <a href="{{ url_for('home') }}" class="list-group-item list-group-item-action {% if not selected_tag %}active{% endif %}">
+                                所有标签
+                            </a>
+                            {% for tag in tags %}
+                            <a href="{{ url_for('home', tag=tag.id) }}" 
+                               class="list-group-item list-group-item-action {% if selected_tag == tag.id %}active{% endif %}">
+                                <span class="tag-badge" style="background-color: {{ tag.color }}">{{ tag.name }}</span>
                             </a>
                             {% endfor %}
                         </div>
@@ -106,6 +157,35 @@
                                     <input type="date" name="due_date" class="form-control">
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <select name="repeat_type" class="form-select">
+                                        <option value="none">不重复</option>
+                                        <option value="daily">每天</option>
+                                        <option value="weekly">每周</option>
+                                        <option value="monthly">每月</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <input type="number" name="repeat_interval" class="form-control" placeholder="重复间隔" min="1" value="1">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <input type="datetime-local" name="reminder_time" class="form-control">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">选择标签</label>
+                                <div class="d-flex flex-wrap gap-2">
+                                    {% for tag in tags %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tag_ids" value="{{ tag.id }}" id="tag{{ tag.id }}">
+                                        <label class="form-check-label" for="tag{{ tag.id }}">
+                                            <span class="tag-badge" style="background-color: {{ tag.color }}">{{ tag.name }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
                             <button type="submit" class="btn btn-primary">添加任务</button>
                         </form>
                     </div>
@@ -129,18 +209,33 @@
                                             {% else %}
                                             <span class="badge bg-info">低</span>
                                             {% endif %}
+                                            {% if todo.repeat_type != 'none' %}
+                                            <i class="bi bi-arrow-repeat" title="重复任务"></i>
+                                            {% endif %}
                                         </h6>
                                         {% if todo.description %}
                                         <p class="mb-1 text-muted">{{ todo.description }}</p>
                                         {% endif %}
-                                        <small class="text-muted">
+                                        <div class="d-flex gap-2 align-items-center">
                                             {% if todo.category %}
                                             <span class="badge bg-secondary">{{ todo.category.name }}</span>
                                             {% endif %}
+                                            {% for tag in todo.tags %}
+                                            <span class="tag-badge" style="background-color: {{ tag.color }}">{{ tag.name }}</span>
+                                            {% endfor %}
                                             {% if todo.due_date %}
-                                            截止日期: {{ todo.due_date.strftime('%Y-%m-%d') }}
+                                            <small class="text-muted">
+                                                <i class="bi bi-calendar"></i>
+                                                截止日期: {{ todo.due_date.strftime('%Y-%m-%d') }}
+                                            </small>
                                             {% endif %}
-                                        </small>
+                                            {% if todo.reminder_time %}
+                                            <small class="text-muted">
+                                                <i class="bi bi-bell"></i>
+                                                提醒时间: {{ todo.reminder_time.strftime('%Y-%m-%d %H:%M') }}
+                                            </small>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                     <div class="btn-group">
                                         <a href="{{ url_for('complete', todo_id=todo.id) }}" 
